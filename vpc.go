@@ -1,6 +1,7 @@
 package awsomvpc
 
 import (
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/go-errors/errors"
@@ -8,12 +9,12 @@ import (
 	"strings"
 )
 
-// Structs
+// Structures
 
-type VpcBuilder struct {
+type vpcBuilder struct {
 	Name      string
 	CidrBlock string
-	Subnets   []Subnet
+	Subnets   []*Subnet
 }
 
 type Subnet struct {
@@ -21,11 +22,11 @@ type Subnet struct {
 	AvailabilityZone string
 }
 
-func NewVpcBuilder(name string) *VpcBuilder {
-	return &VpcBuilder{
+func NewVpcBuilder(name string) *vpcBuilder {
+	return &vpcBuilder{
 		Name:      name,
 		CidrBlock: "10.0.0.0/16",
-		Subnets: []Subnet{
+		Subnets: []*Subnet{
 			{Cidr: "10.0.0.0/18", AvailabilityZone: "us-east-1a"},
 			{Cidr: "10.0.64.0/18", AvailabilityZone: "us-east-1b"},
 			{Cidr: "10.0.128.0/18", AvailabilityZone: "us-east-1c"},
@@ -33,7 +34,25 @@ func NewVpcBuilder(name string) *VpcBuilder {
 	}
 }
 
-func (vpc *VpcBuilder) Create() error {
+func (vpc *vpcBuilder) WithCidrBlockPrefix(cidrBlockPrefix string) *vpcBuilder {
+	vpc.CidrBlock = cidrBlockPrefix + ".0.0/16"
+	vpc.Subnets[0].Cidr = cidrBlockPrefix + ".0.0/18"
+	vpc.Subnets[1].Cidr = cidrBlockPrefix + ".64.0/18"
+	vpc.Subnets[2].Cidr = cidrBlockPrefix + ".128.0/18"
+	return vpc
+}
+
+// vpcBuilder operations
+
+func (vpc *vpcBuilder) Create() error {
+	vpcExists, err := VpcExistsByName(vpc.Name)
+	if err != nil {
+		return err
+	}
+	if vpcExists {
+		return errors.New(fmt.Sprintf("VPC %s already exists.", vpc.Name))
+	}
+
 	ec2Service, err := NewEc2Service()
 	if err != nil {
 		return err
